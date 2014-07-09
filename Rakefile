@@ -6,15 +6,28 @@ module Buster
   def self.run(config)
     shop_url = "https://#{config['api_key']}:#{config['password']}@#{config['shop_name']}.myshopify.com/admin"
     ShopifyAPI::Base.site = shop_url
-    trap(:INT, "EXIT")
-    start_time = Time.now
+    last_time = start_time = Time.now
+    updates = 0
+    trap(:INT) { print "\n"; exit }
     loop do
-      products = ShopifyAPI::Product.all.select {|p| config['products'].include? p }
+      products = ShopifyAPI::Product.all.select {|p| config['products'].include? p.handle }
       products.each {|p| p.save }
       requests = products.count + 1
-      throttle(start_time, requests)
-      start_time = Time.now
+      updates += products.count
+      throttle(last_time, requests)
+      progress(start_time, updates)
+      last_time = Time.now
     end
+  end
+
+  def self.terminal_width
+    `stty size`.scan(/\d+/).map { |s| s.to_i }[1]
+  end
+
+  def self.progress(start_time, updates)
+    print "\r"
+    print(" " * (terminal_width - 1))
+    print "\r#{updates} updates in #{(Time.now - start_time).to_i} sec"
   end
 
   def self.throttle(start_time, requests)
